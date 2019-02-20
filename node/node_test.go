@@ -31,9 +31,7 @@ import (
 	"gx/ipfs/QmPVkJMTeRC6iBByPWdrRkD3BE5UXsj5HPzb4kPqL186mS/testify/require"
 )
 
-var seed = types.GenerateKeyInfoSeed()
-var ki = types.MustGenerateKeyInfo(10, seed)
-var mockSigner = types.NewMockSigner(ki)
+var mockSigner, _ = types.NewMockSignersAndKeyInfo(10)
 
 func TestNodeConstruct(t *testing.T) {
 	t.Parallel()
