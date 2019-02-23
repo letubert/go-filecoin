@@ -3,18 +3,19 @@ package chain
 import (
 	"context"
 	"errors"
-	"gx/ipfs/QmNf3wujpV2Y7Lnj2hy2UrmuX8bhMDStRHbnSLh7Ypf36h/go-hamt-ipld"
-	"github.com/filecoin-project/go-filecoin/mining"
-	"gx/ipfs/QmR8BauakNcBa3RbE4nbQu76PDiJgoQgz8AJdhJuiU4TAw/go-cid"
-	bstore "gx/ipfs/QmRu7tiRnFk9mMPpVECQTBQJqXtmG132jJxA1w9A7TtpBz/go-ipfs-blockstore"
 
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/consensus"
+	"github.com/filecoin-project/go-filecoin/mining"
 	"github.com/filecoin-project/go-filecoin/proofs"
 	"github.com/filecoin-project/go-filecoin/repo"
 	th "github.com/filecoin-project/go-filecoin/testhelpers"
 	"github.com/filecoin-project/go-filecoin/types"
+
+	"gx/ipfs/QmNf3wujpV2Y7Lnj2hy2UrmuX8bhMDStRHbnSLh7Ypf36h/go-hamt-ipld"
 	"gx/ipfs/QmPVkJMTeRC6iBByPWdrRkD3BE5UXsj5HPzb4kPqL186mS/testify/require"
+	"gx/ipfs/QmR8BauakNcBa3RbE4nbQu76PDiJgoQgz8AJdhJuiU4TAw/go-cid"
+	bstore "gx/ipfs/QmRu7tiRnFk9mMPpVECQTBQJqXtmG132jJxA1w9A7TtpBz/go-ipfs-blockstore"
 )
 
 // FakeChildParams is a wrapper for all the params needed to create fake child blocks.
@@ -160,7 +161,7 @@ func RequirePutTsas(ctx context.Context, require *require.Assertions, chain Stor
 }
 
 // MakeProofAndWinningTicket generates a proof and ticket that will pass validateMining.
-func MakeProofAndWinningTicket(minerAddr address.Address, minerPower uint64,
+func MakeProofAndWinningTicket(signerAddr address.Address, minerPower uint64,
 	totalPower uint64, signer types.Signer,
 ) (proofs.PoStProof, types.Signature, error) {
 
@@ -173,7 +174,7 @@ func MakeProofAndWinningTicket(minerAddr address.Address, minerPower uint64,
 
 	for {
 		postProof = th.MakeRandomPoSTProofForTest()
-		ticket = mining.CreateTicket(postProof, minerAddr, signer)
+		ticket = mining.CreateTicket(postProof, signerAddr, signer)
 		if consensus.CompareTicketPower(ticket, minerPower, totalPower) {
 			return postProof, ticket, nil
 		}

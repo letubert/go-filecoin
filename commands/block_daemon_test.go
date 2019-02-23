@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"encoding/json"
@@ -8,14 +8,14 @@ import (
 	th "github.com/filecoin-project/go-filecoin/testhelpers"
 	"github.com/filecoin-project/go-filecoin/types"
 
-	"gx/ipfs/QmPVkJMTeRC6iBByPWdrRkD3BE5UXsj5HPzb4kPqL186mS/testify/assert"
-	"gx/ipfs/QmPVkJMTeRC6iBByPWdrRkD3BE5UXsj5HPzb4kPqL186mS/testify/require"
+	ast "gx/ipfs/QmPVkJMTeRC6iBByPWdrRkD3BE5UXsj5HPzb4kPqL186mS/testify/assert"
+	req "gx/ipfs/QmPVkJMTeRC6iBByPWdrRkD3BE5UXsj5HPzb4kPqL186mS/testify/require"
 )
 
 func TestBlockDaemon(t *testing.T) {
 	t.Parallel()
 	t.Run("show block <cid-of-genesis-block> returns human readable output for the filecoin block", func(t *testing.T) {
-		assert := assert.New(t)
+		assert := ast.New(t)
 
 		d := th.NewDaemon(t,
 			th.DefaultAddress(fixtures.TestAddresses[0]),
@@ -35,7 +35,7 @@ func TestBlockDaemon(t *testing.T) {
 	})
 
 	t.Run("show block <cid-of-genesis-block> --enc json returns JSON for a filecoin block", func(t *testing.T) {
-		require := require.New(t)
+		require := req.New(t)
 
 		d := th.NewDaemon(t, th.DefaultAddress(fixtures.TestAddresses[0]), th.WithMiner(fixtures.TestMiners[0])).Start()
 		defer d.ShutdownSuccess()

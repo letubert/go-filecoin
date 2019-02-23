@@ -1,4 +1,4 @@
-package commands
+package commands_test
 
 import (
 	"testing"
@@ -10,12 +10,11 @@ import (
 
 func TestBootstrapList(t *testing.T) {
 	t.Parallel()
-	assert := assert.New(t)
 
 	d := th.NewDaemon(t).Start()
 	defer d.ShutdownSuccess()
 
 	bs := d.RunSuccess("bootstrap ls")
 
-	assert.Equal("&{[]}\n", bs.ReadStdout())
+	assert.Equal(t, "&{[]}\n", bs.ReadStdout())
 }
