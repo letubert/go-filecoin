@@ -225,9 +225,8 @@ jobs:
 
       - run:
           name: Test
-          command: |
-            trap "go-junit-report < test-results/go-test-suite/go-test.out > test-results/go-test-suite/go-test-report.xml" EXIT
-            go run ./build/*.go test -v -- <<# sector_builder_tests >> -sector-builder-tests<</ sector_builder_tests >> 2>&1 | tee test-results/go-test-suite/go-test.out
+          command: "trap \"go-junit-report < test-results/go-test-suite/go-test.out > test-results/go-test-suite/go-test-report.xml\" EXIT
+            go run ./build/*.go test -v -- <<# sector_builder_tests >> -sector-builder-tests<</ sector_builder_tests >> 2>&1 | tee test-results/go-test-suite/go-test.out"
       - run:
           name: Functional Tests
           command: ./functional-tests/run
@@ -476,7 +475,7 @@ workflows:
   run_sector_builder_tests:
     triggers:
         - schedule:
-            cron: "0,10,20,30,40,50 * * * *"
+            cron: "50 * * * *"
             filters:
               branches:
                 only:
