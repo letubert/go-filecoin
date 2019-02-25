@@ -472,17 +472,17 @@ workflows:
     jobs:
       - build_macos
 
-  run_sector_builder_tests:
-    triggers:
-        - schedule:
-            cron: "57 * * * *"
-            filters:
-              branches:
-                only:
-                  - feat/skip-slow-proofs-tests
-    jobs:
-      - build_linux:
-          sector_builder_tests: true
+#  run_sector_builder_tests:
+#    triggers:
+#      - schedule:
+#          cron: "0 6 * * *"
+#          filters:
+#          branches:
+#          only:
+#            - feat/skip-slow-proofs-tests
+#    jobs:
+#      - build_linux:
+#          sector_builder_tests: true
 
   build_and_publish_release:
     jobs:
