@@ -3,6 +3,7 @@ package testing
 import (
 	"context"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"sort"
@@ -24,7 +25,12 @@ import (
 // build containers) and fast (developer machines) alike.
 const MaxTimeToSealASector = time.Second * 360
 
+var runSectorBuilderTests = *flag.Bool("sector-builder-tests", false, "Run sector builder tests")
+
 func TestSectorBuilder(t *testing.T) {
+	if !runSectorBuilderTests {
+		t.SkipNow()
+	}
 	t.Run("concurrent AddPiece and SealAllStagedSectors", func(t *testing.T) {
 		h := NewBuilder(t).Build()
 		defer h.Close()
