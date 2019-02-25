@@ -61,7 +61,7 @@ func (w *DefaultWorker) Generate(ctx context.Context,
 	copy(messages, SelectMessagesForBlock(pending))
 
 	vms := vm.NewStorageMap(w.blockstore)
-	res, err := w.processor.ApplyMessagesAndPayRewards(ctx, stateTree, vms, messages, w.minerAddr, types.NewBlockHeight(blockHeight), ancestors)
+	res, err := w.processor.ApplyMessagesAndPayRewards(ctx, stateTree, vms, messages, w.minerOwnerAddr, types.NewBlockHeight(blockHeight), ancestors)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate apply messages")
 	}
