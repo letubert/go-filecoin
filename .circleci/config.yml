@@ -476,11 +476,11 @@ workflows:
   run_sector_builder_tests:
     triggers:
         - schedule:
-            cron: "0 0,6,12,18 * * *"
+            cron: "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"
             filters:
               branches:
                 only:
-                  - master
+                  - feat/skip-slow-proofs-tests
     jobs:
       - build_linux:
           sector_builder_tests: true
