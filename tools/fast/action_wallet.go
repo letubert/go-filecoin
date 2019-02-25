@@ -43,11 +43,9 @@ func (f *Filecoin) WalletImport(ctx context.Context, file files.File) ([]address
 }
 
 // WalletExport run the wallet export command against the filecoin process.
-func (f *Filecoin) WalletExport(ctx context.Context, addrs []address.Address) ([]*types.KeyInfo, error) {
+func (f *Filecoin) WalletExport(ctx context.Context, addrs []address.Address) ([]commands.WalletExportResult, error) {
 	// the command returns an KeyInfoListResult
-	var klr commands.WalletExportResult
-	// we expect to interact with an array of KeyInfo(s)
-	var out []*types.KeyInfo
+	var klr []commands.WalletExportResult
 	var sAddrs []string
 	for _, a := range addrs {
 		sAddrs = append(sAddrs, a.String())
@@ -57,6 +55,5 @@ func (f *Filecoin) WalletExport(ctx context.Context, addrs []address.Address) ([
 		return nil, err
 	}
 
-	// transform the KeyInfoListResult to an array of KeyInfo(s)
-	return append(out, klr.KeyInfo...), nil
+	return klr, nil
 }

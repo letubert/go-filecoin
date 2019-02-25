@@ -168,9 +168,11 @@ var walletImportCmd = &cmds.Command{
 	},
 }
 
-// WalletExportResult is the resut of running the wallet export command.
+// WalletExportResult is the result of running the wallet export command.
 type WalletExportResult struct {
-	KeyInfo []*types.KeyInfo
+	Address    string
+	PrivateKey string
+	Curve      string
 }
 
 var walletExportCmd = &cmds.Command{
@@ -192,20 +194,23 @@ var walletExportCmd = &cmds.Command{
 			return err
 		}
 
-		var klr WalletExportResult
-		klr.KeyInfo = append(klr.KeyInfo, kis...)
+		var result []WalletExportResult
 
-		return re.Emit(klr)
+		for _, keyInfo := range kis {
+			address, err := keyInfo.Address()
+			if err != nil {
+				return err
+			}
+			result = append(result, WalletExportResult{Address: address.String(), PrivateKey: fmt.Sprintf("%x", keyInfo.PrivateKey), Curve: keyInfo.Curve})
+		}
+
+		return re.Emit(result)
 	},
-	Type: &WalletExportResult{},
+	Type: []WalletExportResult{},
 	Encoders: cmds.EncoderMap{
-		cmds.Text: cmds.MakeTypedEncoder(func(req *cmds.Request, w io.Writer, klr *WalletExportResult) error {
-			for _, k := range klr.KeyInfo {
-				a, err := k.Address()
-				if err != nil {
-					return err
-				}
-				_, err = fmt.Fprintf(w, "Address:\t%s\nPrivateKey:\t%x\nCurve:\t\t%s\n\n", a.String(), k.PrivateKey, k.Curve)
+		cmds.Text: cmds.MakeTypedEncoder(func(req *cmds.Request, w io.Writer, wltResults []WalletExportResult) error {
+			for _, wlt := range wltResults {
+				_, err := fmt.Fprintf(w, "Address:\t%s\nPrivateKey:\t%s\nCurve:\t\t%s\n\n", wlt.Address, wlt.PrivateKey, wlt.Curve)
 				if err != nil {
 					return err
 				}
