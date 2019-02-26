@@ -12,12 +12,118 @@ import (
 	cbor "gx/ipfs/QmcZLyosDwMKdB6NLRsiss9HXzDPhVhhRtPy67JFKTDQDX/go-ipld-cbor"
 
 	minerActor "github.com/filecoin-project/go-filecoin/actor/builtin/miner"
+	"github.com/filecoin-project/go-filecoin/actor/builtin/storagemarket"
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/exec"
 	"github.com/filecoin-project/go-filecoin/types"
 	vmErrors "github.com/filecoin-project/go-filecoin/vm/errors"
 	w "github.com/filecoin-project/go-filecoin/wallet"
 )
+
+// mcAPI is the subset of the plumbing.API that MinerCreate uses.
+type mcAPI interface {
+	ConfigGet(dottedPath string) (interface{}, error)
+	ConfigSet(dottedPath string, paramJSON string) error
+	GetAndMaybeSetDefaultSenderAddress() (address.Address, error)
+	MessageSend(ctx context.Context, from, to address.Address, value *types.AttoFIL, gasPrice types.AttoFIL, gasLimit types.GasUnits, method string, params ...interface{}) (cid.Cid, error)
+	MessageWait(ctx context.Context, msgCid cid.Cid, cb func(*types.Block, *types.SignedMessage, *types.MessageReceipt) error) error
+	MinerGetOwnerAddress(ctx context.Context, minerAddr address.Address) (address.Address, error)
+	NetworkGetPeerID() peer.ID
+	WalletFind(address address.Address) (w.Backend, error)
+}
+
+// MinerCreate creates submits a new miner to the network
+func MinerCreate(
+	ctx context.Context,
+	plumbing mcAPI,
+	fromAddr address.Address,
+	gasPrice types.AttoFIL,
+	gasLimit types.GasUnits,
+	pledge uint64,
+	pid peer.ID,
+	collateral *types.AttoFIL,
+) (addr address.Address, err error) {
+	if fromAddr == (address.Address{}) {
+		fromAddr, err = plumbing.GetAndMaybeSetDefaultSenderAddress()
+		if err != nil {
+			return address.Address{}, err
+		}
+	}
+
+	if pid == "" {
+		pid = plumbing.NetworkGetPeerID()
+	}
+
+	if _, err := plumbing.ConfigGet("mining.minerAddress"); err != nil {
+		return address.Address{}, fmt.Errorf("can only have one miner per node")
+	}
+
+	ctx = log.Start(ctx, "Node.CreateMiner")
+	defer func() {
+		log.FinishWithErr(ctx, err)
+	}()
+
+	backend, err := plumbing.WalletFind(fromAddr)
+	if err != nil {
+		return address.Address{}, err
+	}
+	info, err := backend.GetKeyInfo(fromAddr)
+	if err != nil {
+		return address.Address{}, err
+	}
+	pubkey, err := info.PublicKey()
+	if err != nil {
+		return address.Address{}, err
+	}
+
+	smsgCid, err := plumbing.MessageSend(
+		ctx,
+		fromAddr,
+		address.StorageMarketAddress,
+		types.NewAttoFIL(big.NewInt(int64(pledge))),
+		gasPrice,
+		gasLimit,
+		"createMiner",
+		pubkey,
+		pid,
+	)
+	if err != nil {
+		return address.Address{}, errors.Wrap(err, "Could not create miner. Please consult the documentation to setup your wallet and genesis block correctly")
+	}
+
+	var minerAddr address.Address
+	err = plumbing.MessageWait(ctx, smsgCid, func(blk *types.Block, smsg *types.SignedMessage,
+		receipt *types.MessageReceipt) error {
+		if receipt.ExitCode != uint8(0) {
+			return vmErrors.VMExitCodeToError(receipt.ExitCode, storagemarket.Errors)
+		}
+		minerAddr, err = address.NewFromBytes(receipt.Return[0])
+		return err
+	})
+	if err != nil {
+		return address.Address{}, err
+	}
+
+	// TODO: https://github.com/filecoin-project/go-filecoin/issues/1843
+	blockSignerAddr, err := plumbing.MinerGetOwnerAddress(ctx, minerAddr)
+	if err != nil {
+		return minerAddr, err
+	}
+
+	if err = plumbing.ConfigSet("mining.minerAddress", minerAddr.String()); err != nil {
+		return address.Address{}, err
+	}
+
+	if err = plumbing.ConfigSet("mining.blockSignerAddr", blockSignerAddr.String()); err != nil {
+		return address.Address{}, err
+	}
+
+	// if err = node.setupMining(ctx); err != nil {
+	// 	return address.Address{}, err
+	// }
+
+	return minerAddr, nil
+}
 
 // mpcAPI is the subset of the plumbing.API that MinerPreviewCreate uses.
 type mpcAPI interface {

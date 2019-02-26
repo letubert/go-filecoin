@@ -36,7 +36,6 @@ import (
 	dht "gx/ipfs/QmfM7kwroZsKhKFmnJagPvM28MZMyKxG3QV2AqfvZvEEqS/go-libp2p-kad-dht"
 	dhtopts "gx/ipfs/QmfM7kwroZsKhKFmnJagPvM28MZMyKxG3QV2AqfvZvEEqS/go-libp2p-kad-dht/opts"
 
-	"github.com/filecoin-project/go-filecoin/abi"
 	"github.com/filecoin-project/go-filecoin/actor/builtin"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/storagemarket"
 	"github.com/filecoin-project/go-filecoin/address"
@@ -470,7 +469,7 @@ func (node *Node) Start(ctx context.Context) error {
 	}
 
 	// Only set these up if there is a miner configured.
-	if _, err := node.miningAddress(); err == nil {
+	if _, err := node.PorcelainAPI.ConfigGet("mining.minerAddress"); err == nil {
 		if err := node.setupMining(ctx); err != nil {
 			log.Errorf("setup mining failed: %v", err)
 			return err
@@ -528,10 +527,11 @@ func (node *Node) Start(ctx context.Context) error {
 	}
 
 	mag := func() address.Address {
-		addr, err := node.miningAddress()
-		// the only error miningAddress() returns is ErrNoMinerAddress.
-		// if there is no configured miner address, simply send a zero
-		// address across the wire.
+		addrString, err := node.PorcelainAPI.ConfigGet("mining.minerAddress")
+		if err != nil {
+			return address.Address{}
+		}
+		addr, err := address.NewFromString(addrString.(string))
 		if err != nil {
 			return address.Address{}
 		}
@@ -557,19 +557,46 @@ func (node *Node) Start(ctx context.Context) error {
 }
 
 func (node *Node) setupMining(ctx context.Context) error {
+	minerAddrString, err := node.PorcelainAPI.ConfigGet("mining.minerAddress")
+	if err != nil {
+		return errors.Wrap(err, "failed to get node's mining address")
+	}
+	minerAddr, err := address.NewFromString(minerAddrString.(string))
+	if err != nil {
+		return errors.Wrap(err, "failed to decode node's mining address")
+	}
+
+	lastUsedSectorID, err := node.PorcelainAPI.SectorBuilderGetLastUsedID(ctx, minerAddr)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get last used sector id for miner w/address %s", minerAddrString)
+	}
+
+	// TODO: Where should we store the RustSectorBuilder metadata? Currently, we
+	// configure the RustSectorBuilder to store its metadata in the staging
+	// directory.
+
 	// configure the underlying sector store, defaulting to the non-test version
 	sectorStoreType := proofs.Live
 	if os.Getenv("FIL_USE_SMALL_SECTORS") == "true" {
 		sectorStoreType = proofs.Test
 	}
 
-	// initialize a sector builder
-	sectorBuilder, err := initSectorBuilderForNode(ctx, node, sectorStoreType)
-	if err != nil {
-		return errors.Wrap(err, "failed to initialize sector builder")
+	cfg := sectorbuilder.RustSectorBuilderConfig{
+		BlockService:     node.blockservice,
+		LastUsedSectorID: lastUsedSectorID,
+		MetadataDir:      node.Repo.StagingDir(),
+		MinerAddr:        minerAddr,
+		SealedSectorDir:  node.Repo.SealedDir(),
+		SectorStoreType:  sectorStoreType,
+		StagedSectorDir:  node.Repo.StagingDir(),
 	}
-	node.sectorBuilder = sectorBuilder
 
+	sb, err := sectorbuilder.NewRustSectorBuilder(cfg)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to initialize sector builder for miner %s", minerAddr.String()))
+	}
+
+	node.sectorBuilder = sb
 	return nil
 }
 
@@ -701,17 +728,6 @@ func (node *Node) addNewlyMinedBlock(ctx context.Context, b *types.Block) {
 	}
 }
 
-// miningAddress returns the address of the mining actor mining on behalf of
-// the node.
-func (node *Node) miningAddress() (address.Address, error) {
-	addr := node.Repo.Config().Mining.MinerAddress
-	if addr == (address.Address{}) {
-		return address.Address{}, ErrNoMinerAddress
-	}
-
-	return addr, nil
-}
-
 // MiningTimes returns the configured time it takes to mine a block, and also
 // the mining delay duration, which is currently a fixed fraction of block time.
 // Note this is mocked behavior, in production this time is determined by how
@@ -744,9 +760,13 @@ func (node *Node) StartMining(ctx context.Context) error {
 	if node.isMining() {
 		return errors.New("Node is already mining")
 	}
-	minerAddr, err := node.miningAddress()
+	minerAddrString, err := node.PorcelainAPI.ConfigGet("mining.minerAddress")
 	if err != nil {
 		return errors.Wrap(err, "failed to get mining address")
+	}
+	minerAddr, err := address.NewFromString(minerAddrString.(string))
+	if err != nil {
+		return errors.Wrap(err, "failed to decode node's mining address")
 	}
 
 	// ensure we have a sector builder
@@ -756,7 +776,7 @@ func (node *Node) StartMining(ctx context.Context) error {
 		}
 	}
 
-	minerOwnerAddr, err := node.miningOwnerAddress(ctx, minerAddr)
+	minerOwnerAddr, err := node.PorcelainAPI.MinerGetOwnerAddress(ctx, minerAddr)
 	minerSigningAddress := node.MiningSignerAddress()
 	if err != nil {
 		return errors.Wrapf(err, "failed to get mining owner address for miner %s", minerAddr)
@@ -885,69 +905,18 @@ func (node *Node) StartMining(ctx context.Context) error {
 	return nil
 }
 
-func (node *Node) getLastUsedSectorID(ctx context.Context, minerAddr address.Address) (uint64, error) {
-	rets, methodSignature, err := node.PorcelainAPI.MessageQuery(
-		ctx,
-		address.Address{},
-		minerAddr,
-		"getLastUsedSectorID",
-	)
-	if err != nil {
-		return 0, errors.Wrap(err, "failed to call query method getLastUsedSectorID")
-	}
-
-	lastUsedSectorIDVal, err := abi.Deserialize(rets[0], methodSignature.Return[0])
-	if err != nil {
-		return 0, errors.Wrap(err, "failed to convert returned ABI value")
-	}
-	lastUsedSectorID, ok := lastUsedSectorIDVal.Val.(uint64)
-	if !ok {
-		return 0, errors.New("failed to convert returned ABI value to uint64")
-	}
-
-	return lastUsedSectorID, nil
-}
-
-func initSectorBuilderForNode(ctx context.Context, node *Node, sectorStoreType proofs.SectorStoreType) (sectorbuilder.SectorBuilder, error) {
-	minerAddr, err := node.miningAddress()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get node's mining address")
-	}
-
-	lastUsedSectorID, err := node.getLastUsedSectorID(ctx, minerAddr)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get last used sector id for miner w/address %s", minerAddr.String())
-	}
-
-	// TODO: Where should we store the RustSectorBuilder metadata? Currently, we
-	// configure the RustSectorBuilder to store its metadata in the staging
-	// directory.
-
-	cfg := sectorbuilder.RustSectorBuilderConfig{
-		BlockService:     node.blockservice,
-		LastUsedSectorID: lastUsedSectorID,
-		MetadataDir:      node.Repo.StagingDir(),
-		MinerAddr:        minerAddr,
-		SealedSectorDir:  node.Repo.SealedDir(),
-		SectorStoreType:  sectorStoreType,
-		StagedSectorDir:  node.Repo.StagingDir(),
-	}
-
-	sb, err := sectorbuilder.NewRustSectorBuilder(cfg)
-	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to initialize sector builder for miner %s", minerAddr.String()))
-	}
-
-	return sb, nil
-}
-
 func initStorageMinerForNode(ctx context.Context, node *Node) (*storage.Miner, error) {
-	minerAddr, err := node.miningAddress()
+	minerAddrString, err := node.PorcelainAPI.ConfigGet("mining.minerAddress")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get node's mining address")
 	}
 
-	miningOwnerAddr, err := node.miningOwnerAddress(ctx, minerAddr)
+	minerAddr, err := address.NewFromString(minerAddrString.(string))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decode node's mining address")
+	}
+
+	miningOwnerAddr, err := node.PorcelainAPI.MinerGetOwnerAddress(ctx, minerAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "no mining owner available, skipping storage miner setup")
 	}
@@ -988,7 +957,7 @@ func (node *Node) NewAddress() (address.Address, error) {
 func (node *Node) CreateMiner(ctx context.Context, accountAddr address.Address, gasPrice types.AttoFIL, gasLimit types.GasUnits, pledge uint64, pid libp2ppeer.ID, collateral *types.AttoFIL) (_ *address.Address, err error) {
 
 	// Only create a miner if we don't already have one.
-	if _, err := node.miningAddress(); err != ErrNoMinerAddress {
+	if _, err := node.PorcelainAPI.ConfigGet("mining.minerAddress"); err != ErrNoMinerAddress {
 		return nil, fmt.Errorf("can only have one miner per node")
 	}
 
@@ -1001,7 +970,7 @@ func (node *Node) CreateMiner(ctx context.Context, accountAddr address.Address, 
 		return nil, err
 	}
 
-	smsgCid, err := node.PorcelainAPI.MessageSendWithDefaultAddress(
+	smsgCid, err := node.PorcelainAPI.MessageSend(
 		ctx,
 		accountAddr,
 		address.StorageMarketAddress,
@@ -1031,7 +1000,7 @@ func (node *Node) CreateMiner(ctx context.Context, accountAddr address.Address, 
 	}
 
 	// TODO: https://github.com/filecoin-project/go-filecoin/issues/1843
-	blockSignerAddr, err := node.miningOwnerAddress(ctx, minerAddr)
+	blockSignerAddr, err := node.PorcelainAPI.MinerGetOwnerAddress(ctx, minerAddr)
 	if err != nil {
 		return &minerAddr, err
 	}
@@ -1053,22 +1022,6 @@ func (node *Node) saveMinerConfig(minerAddr address.Address, signerAddr address.
 	newConfig.Mining.MinerAddress = minerAddr
 	newConfig.Mining.BlockSignerAddress = signerAddr
 	return r.ReplaceConfig(newConfig)
-}
-
-// miningOwnerAddress returns the owner of miningAddr.
-// TODO: find a better home for this method
-func (node *Node) miningOwnerAddress(ctx context.Context, miningAddr address.Address) (address.Address, error) {
-	res, _, err := node.PorcelainAPI.MessageQuery(
-		ctx,
-		address.Address{},
-		miningAddr,
-		"getOwner",
-	)
-	if err != nil {
-		return address.Address{}, errors.Wrap(err, "failed to getOwner")
-	}
-
-	return address.NewFromBytes(res[0])
 }
 
 // MiningSignerAddress returns the signing address for the miner actor to sign blocks and tickets

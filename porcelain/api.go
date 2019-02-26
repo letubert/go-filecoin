@@ -51,10 +51,55 @@ func (a *API) CreatePayments(ctx context.Context, config CreatePaymentsParams) (
 	return CreatePayments(ctx, a, config)
 }
 
+// GetAndMaybeSetDefaultSenderAddress returns a default address from which to
+// send messsages. If none is set it picks the first address in the wallet and
+// sets it as the default in the config.
+func (a *API) GetAndMaybeSetDefaultSenderAddress() (address.Address, error) {
+	return GetAndMaybeSetDefaultSenderAddress(a)
+}
+
+// MinerGetAsk queries for an ask of the given miner
+func (a *API) MinerGetAsk(ctx context.Context, minerAddr address.Address, askID uint64) (minerActor.Ask, error) {
+	return MinerGetAsk(ctx, a, minerAddr, askID)
+}
+
+// MinerGetOwnerAddress queries for the owner address of the given miner
+func (a *API) MinerGetOwnerAddress(ctx context.Context, minerAddr address.Address) (address.Address, error) {
+	return MinerGetOwnerAddress(ctx, a, minerAddr)
+}
+
+// MinerGetPeerID queries for the peer id of the given miner
+func (a *API) MinerGetPeerID(ctx context.Context, minerAddr address.Address) (peer.ID, error) {
+	return MinerGetPeerID(ctx, a, minerAddr)
+}
+
 // MessagePoolWait waits for the message pool to have at least messageCount unmined messages.
 // It's useful for integration testing.
 func (a *API) MessagePoolWait(ctx context.Context, messageCount uint) ([]*types.SignedMessage, error) {
 	return MessagePoolWait(ctx, a, messageCount)
+}
+
+// MinerPreviewCreate previews the Gas cost of creating a miner
+func (a *API) MinerPreviewCreate(
+	ctx context.Context,
+	fromAddr address.Address,
+	pledge uint64,
+	pid peer.ID,
+	collateral *types.AttoFIL,
+) (usedGas types.GasUnits, err error) {
+	return MinerPreviewCreate(ctx, a, fromAddr, pledge, pid, collateral)
+}
+
+// MinerPreviewSetPrice calculates the amount of Gas needed for a call to MinerSetPrice.
+// This method accepts all the same arguments as MinerSetPrice.
+func (a *API) MinerPreviewSetPrice(
+	ctx context.Context,
+	from address.Address,
+	miner address.Address,
+	price *types.AttoFIL,
+	expiry *big.Int,
+) (types.GasUnits, error) {
+	return MinerPreviewSetPrice(ctx, a, from, miner, price, expiry)
 }
 
 // MessageSendWithDefaultAddress calls MessageSend but with a default from
@@ -82,54 +127,14 @@ func (a *API) MessageSendWithDefaultAddress(
 	)
 }
 
-// MinerPreviewCreate previews the Gas cost of creating a miner
-func (a *API) MinerPreviewCreate(
-	ctx context.Context,
-	fromAddr address.Address,
-	pledge uint64,
-	pid peer.ID,
-	collateral *types.AttoFIL,
-) (usedGas types.GasUnits, err error) {
-	return MinerPreviewCreate(ctx, a, fromAddr, pledge, pid, collateral)
-}
-
-// MinerGetAsk queries for an ask of the given miner
-func (a *API) MinerGetAsk(ctx context.Context, minerAddr address.Address, askID uint64) (minerActor.Ask, error) {
-	return MinerGetAsk(ctx, a, minerAddr, askID)
-}
-
-// MinerGetOwnerAddress queries for the owner address of the given miner
-func (a *API) MinerGetOwnerAddress(ctx context.Context, minerAddr address.Address) (address.Address, error) {
-	return MinerGetOwnerAddress(ctx, a, minerAddr)
-}
-
-// MinerGetPeerID queries for the peer id of the given miner
-func (a *API) MinerGetPeerID(ctx context.Context, minerAddr address.Address) (peer.ID, error) {
-	return MinerGetPeerID(ctx, a, minerAddr)
-}
-
 // MinerSetPrice configures the price of storage. See implementation for details.
 func (a *API) MinerSetPrice(ctx context.Context, from address.Address, miner address.Address, gasPrice types.AttoFIL, gasLimit types.GasUnits, price *types.AttoFIL, expiry *big.Int) (MinerSetPriceResponse, error) {
 	return MinerSetPrice(ctx, a, from, miner, gasPrice, gasLimit, price, expiry)
 }
 
-// MinerPreviewSetPrice calculates the amount of Gas needed for a call to MinerSetPrice.
-// This method accepts all the same arguments as MinerSetPrice.
-func (a *API) MinerPreviewSetPrice(
-	ctx context.Context,
-	from address.Address,
-	miner address.Address,
-	price *types.AttoFIL,
-	expiry *big.Int,
-) (types.GasUnits, error) {
-	return MinerPreviewSetPrice(ctx, a, from, miner, price, expiry)
-}
-
-// GetAndMaybeSetDefaultSenderAddress returns a default address from which to
-// send messsages. If none is set it picks the first address in the wallet and
-// sets it as the default in the config.
-func (a *API) GetAndMaybeSetDefaultSenderAddress() (address.Address, error) {
-	return GetAndMaybeSetDefaultSenderAddress(a)
+// SectorBuilderGetLastUsedID returns the last used sector id by the sectorbuilder
+func (a *API) SectorBuilderGetLastUsedID(ctx context.Context, minerAddr address.Address) (uint64, error) {
+	return SectorBuilderGetLastUsedID(ctx, a, minerAddr)
 }
 
 // WalletBalance returns the current balance of the given wallet address.
