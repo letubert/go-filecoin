@@ -49,10 +49,12 @@ func (pk *PrivateKey) Serialize() []byte {
 	return pk[:]
 }
 
+// MarshalJSON marshals the private key to json and returns the bytes.
 func (pk *PrivateKey) MarshalJSON() ([]byte, error) {
 	return json.Marshal(pk[:])
 }
 
+// UnmarshalJSON unmarshals the byte array to a private key.
 func (pk *PrivateKey) UnmarshalJSON(b []byte) error {
 	bytes := make([]byte, PrivateKeyBytes)
 	err := json.Unmarshal(b, &bytes)
