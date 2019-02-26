@@ -23,7 +23,7 @@ func MustGenerateKeyInfo(n int, seed io.Reader) []KeyInfo {
 		}
 
 		ki := &KeyInfo{
-			PrivateKey: *prv,
+			PrivateKey: prv,
 			Curve:      SECP256K1,
 		}
 		keyinfos = append(keyinfos, *ki)

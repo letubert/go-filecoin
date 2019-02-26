@@ -25,7 +25,7 @@ func Verify(pk *crypto.PublicKey, data, signature []byte) (bool, error) {
 	hash := blake2b.Sum256(data)
 	// remove recovery id
 	sig := signature[:len(signature)-1]
-	return pk.Verify(hash[:], sig)
+	return pk.Verify(hash[:], sig), nil
 }
 
 // Ecrecover returns an uncompressed public key that could produce the given

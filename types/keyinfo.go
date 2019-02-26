@@ -11,11 +11,11 @@ func init() {
 	cbor.RegisterCborType(KeyInfo{})
 }
 
-// KeyInfo is a key and its type used for signing
+// KeyInfo is a key and its type used for signing.
 type KeyInfo struct {
-	// Private key as bytes
-	PrivateKey crypto.PrivateKey `json:"privateKey"`
-	// Curve used to generate private key
+	// Private key.
+	PrivateKey *crypto.PrivateKey `json:"privateKey"`
+	// Curve used to generate private key.
 	Curve string `json:"curve"`
 }
 
@@ -31,7 +31,7 @@ func (ki *KeyInfo) Marshal() ([]byte, error) {
 
 // Key returns the private key of KeyInfo
 func (ki *KeyInfo) Key() *crypto.PrivateKey {
-	return &ki.PrivateKey
+	return ki.PrivateKey
 }
 
 // Type returns the type of curve used to generate the private key
@@ -51,7 +51,7 @@ func (ki *KeyInfo) Equals(other *KeyInfo) bool {
 		return false
 	}
 
-	return ki.PrivateKey.Equals(&other.PrivateKey)
+	return ki.PrivateKey.Equals(other.PrivateKey)
 }
 
 // Address returns the address for this keyinfo

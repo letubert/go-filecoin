@@ -11,7 +11,24 @@ import (
 func TestGenerateKey(t *testing.T) {
 	assert := assert.New(t)
 
-	key := crypto.GenerateKey()
-	assert.Equal(len(key), 32)
-	assert.NotEqual(key[0], 0)
+	key, err := crypto.GenerateKey()
+	assert.NoError(err)
+
+	keyBytes := key.Serialize()
+
+	assert.Equal(len(keyBytes), 32)
+	assert.NotEqual(keyBytes[0], 0)
+
+	msg := make([]byte, 32)
+	msg[0] = 1
+
+	digest, err := key.Sign(msg)
+	assert.NoError(err)
+	assert.Equal(len(digest), 65)
+
+	// assert.True(key.PublicKey().Verify(msg, digest))
+
+	recovered, err := crypto.EcRecover(msg, digest)
+	assert.NoError(err)
+	assert.Equal(recovered, key.PublicKey())
 }

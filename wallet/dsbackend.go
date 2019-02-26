@@ -96,11 +96,14 @@ func (backend *DSBackend) HasAddress(addr address.Address) bool {
 // NewAddress creates a new address and stores it.
 // Safe for concurrent access.
 func (backend *DSBackend) NewAddress() (address.Address, error) {
-	prv := crypto.GenerateKey()
+	prv, err := crypto.GenerateKey()
+	if err != nil {
+		return address.Address{}, err
+	}
 
 	// TODO: maybe the above call should just return a keyinfo?
 	ki := &types.KeyInfo{
-		PrivateKey: *prv,
+		PrivateKey: prv,
 		Curve:      SECP256K1,
 	}
 
@@ -146,7 +149,7 @@ func (backend *DSBackend) SignBytes(data []byte, addr address.Address) (types.Si
 // Verify cryptographically verifies that 'sig' is the signed hash of 'data' with
 // the public key `pk`.
 func (backend *DSBackend) Verify(data []byte, pk *crypto.PublicKey, sig types.Signature) (bool, error) {
-	return pk.Verify(data, sig)
+	return pk.Verify(data, sig), nil
 }
 
 // GetKeyInfo will return the private & public keys associated with address `addr`

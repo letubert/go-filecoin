@@ -11,10 +11,11 @@ import (
 func TestKeyInfoMarshal(t *testing.T) {
 	assert := assert.New(t)
 
-	testKey := crypto.GenerateKey()
+	testKey, err := crypto.GenerateKey()
+	assert.NoError(err)
 	testType := "test_key_type"
 	ki := &KeyInfo{
-		PrivateKey: *testKey,
+		PrivateKey: testKey,
 		Curve:      testType,
 	}
 
